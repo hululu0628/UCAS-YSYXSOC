@@ -8,6 +8,7 @@ out/
 !*.sv
 !*.cpp
 !*.cc
+!*.pdf
 !.gitignore
 !.scalafmt.conf
 !README.md
