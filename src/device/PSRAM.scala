@@ -40,6 +40,7 @@ class psramChisel extends RawModule {
 	val reset = io.ce_n.asBool
 
 	val s_cmd::s_addr::r_wait::r_data::w_data::Nil = Enum(5)
+
 	withClockAndReset(clk, reset.asAsyncReset) {
 		val state = RegInit(s_cmd)
 		val cmd = RegInit(0.U(8.W))
@@ -56,13 +57,32 @@ class psramChisel extends RawModule {
 		dout := 0.U(4.W)
 		out_en := false.B
 
+		val isqpi = Reg(Bool())
+		val psram_cmd = Cat(cmd(6,0), di(0))
+
+		when(psram_cmd === 0x35.U) {
+			isqpi := true.B
+		} .elsewhen(psram_cmd === 0xF5.U) {
+			isqpi := false.B
+		}
+
 		when(state === s_cmd) {
-			cmd := (cmd << 1) | Cat(0.U(7.W), di(0))
-			when(cnt < 7.U) {
-				cnt := cnt + 1.U
+			when(isqpi) {
+				cmd := (cmd << 4) | Cat(0.U(4.W), di)
+				when(cnt < 1.U) {
+					cnt := cnt + 1.U
+				} .otherwise {
+					cnt := 0.U
+					state := s_addr
+				}
 			} .otherwise {
-				cnt := 0.U
-				state := s_addr
+				cmd := (cmd << 1) | Cat(0.U(7.W), di(0))
+				when(cnt < 7.U) {
+					cnt := cnt + 1.U
+				} .otherwise {
+					cnt := 0.U
+					state := s_cmd
+				}
 			}
 		} .elsewhen(state === s_addr) {
 			addr := (addr << 4) | Cat(0.U(16.W), di)
