@@ -70,7 +70,7 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
 
 	val addrInFlash = in.psel && (in.paddr(29,28) === 0x3.U)
 
-	val s_spi::s_fsetctrl::s_fsetdiv::s_fsettx0::s_fsettx1::s_fsetss::s_fsetgo::s_fcheckgo::s_fgetres::s_fclss::Nil = Enum(10)
+	val s_spi::s_fsetctrl::s_fsetdiv::s_fsettx0::s_fsettx1::s_fsetss::s_fsetiego::s_fcheckie::s_fgetres::s_fclss::Nil = Enum(10)
 	val state = RegInit(s_spi)
 	val apb_idle::apb_enable::Nil = Enum(2)
 	val apb_state = RegInit(apb_idle)
@@ -81,9 +81,9 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
 		s_fsetdiv -> Mux(apb_io.penable && mspi.io.in.pready, s_fsettx0, s_fsetdiv),
 		s_fsettx0 -> Mux(apb_io.penable && mspi.io.in.pready, s_fsettx1, s_fsettx0),
 		s_fsettx1 -> Mux(apb_io.penable && mspi.io.in.pready, s_fsetss, s_fsettx1),
-		s_fsetss -> Mux(apb_io.penable && mspi.io.in.pready, s_fsetgo, s_fsetss),
-		s_fsetgo -> Mux(apb_io.penable && mspi.io.in.pready, s_fcheckgo, s_fsetgo),
-		s_fcheckgo -> Mux(apb_io.penable && mspi.io.in.pready && !(mspi.io.in.prdata & CTRL_GO), s_fgetres, s_fcheckgo),
+		s_fsetss -> Mux(apb_io.penable && mspi.io.in.pready, s_fsetiego, s_fsetss),
+		s_fsetiego -> Mux(apb_io.penable && mspi.io.in.pready, s_fcheckie, s_fsetiego),
+		s_fcheckie -> Mux(mspi.io.spi_irq_out, s_fgetres, s_fcheckie),
 		s_fgetres -> Mux(apb_io.penable && mspi.io.in.pready, s_fclss, s_fgetres),
 		s_fclss -> Mux(apb_io.penable && mspi.io.in.pready, 
 			    Mux(addrInFlash, s_fsetctrl, s_spi), s_fclss)
@@ -156,29 +156,26 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
 			apb_io.penable := true.B
 		}
 		in.pready := false.B
-	} .elsewhen(state === s_fsetgo) {
+	} .elsewhen(state === s_fsetiego) {
 		apb_io.psel := true.B
 		apb_io.penable := false.B
 		apb_io.paddr := SPI_CTRL
 		apb_io.pwrite := true.B
-		apb_io.pwdata := (CTRL_GO | 64.U)
+		apb_io.pwdata := (CTRL_IE | CTRL_GO | 64.U)
 		apb_io.pstrb := 0xf.U(4.W)
 		apb_io.pprot := 0.U
 		when(apb_state === apb_enable) {
 			apb_io.penable := true.B
 		}
 		in.pready := false.B
-	} .elsewhen(state === s_fcheckgo) {
-		apb_io.psel := true.B
+	} .elsewhen(state === s_fcheckie) {
+		apb_io.psel := false.B
 		apb_io.penable := false.B
 		apb_io.paddr := SPI_CTRL
 		apb_io.pwrite := false.B
 		apb_io.pwdata := 0.U(32.W)
 		apb_io.pstrb := 0xf.U(4.W)
 		apb_io.pprot := 0.U
-		when(apb_state === apb_enable) {
-			apb_io.penable := true.B
-		}
 		in.pready := false.B
 	} .elsewhen(state === s_fgetres) {
 		apb_io.psel := true.B
@@ -209,7 +206,7 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
 		}
 		in.pready := false.B
 	} .otherwise {
-		apb_io.psel := true.B
+		apb_io.psel := false.B
 		apb_io.penable := false.B
 		apb_io.paddr := SPI_CTRL
 		apb_io.pwrite := true.B
