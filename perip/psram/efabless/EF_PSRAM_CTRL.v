@@ -129,7 +129,7 @@ module PSRAM_READER (
                         (counter == 7) ?   saddr[3:0]          :
                         4'h0;
 
-    assign douten   = (counter < 2);
+    assign douten   = (counter < 8);
 
     assign done     = (counter == FINAL_COUNT+1);
 
