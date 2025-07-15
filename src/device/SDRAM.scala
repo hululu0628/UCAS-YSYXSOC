@@ -46,6 +46,20 @@ class SDRAMIO extends Bundle {
   val we  = Output(Bool())
   val a   = Output(UInt(13.W))
   val ba  = Output(UInt(2.W))
+  val dqm = Output(UInt(4.W))
+  val dq0  = Analog(16.W)
+  val dq1  = Analog(16.W)
+}
+
+class SDRAMIOSub extends Bundle {
+  val clk = Output(Bool())
+  val cke = Output(Bool())
+  val cs  = Output(Bool())
+  val ras = Output(Bool())
+  val cas = Output(Bool())
+  val we  = Output(Bool())
+  val a   = Output(UInt(13.W))
+  val ba  = Output(UInt(2.W))
   val dqm = Output(UInt(2.W))
   val dq  = Analog(16.W)
 }
@@ -72,8 +86,35 @@ class sdram extends BlackBox {
   val io = IO(Flipped(new SDRAMIO))
 }
 
-class sdramChisel extends RawModule with SDRAMCMD with SDRAMMODE {
+class sdramChisel extends RawModule {
 	val io = IO(Flipped(new SDRAMIO))
+	val sdramVec = Seq(Module(new sdramChiselSub(0.U)), Module(new sdramChiselSub(1.U)))
+
+	sdramVec(0).io.clk := io.clk
+	sdramVec(0).io.cke := io.cke
+	sdramVec(0).io.cs := io.cs
+	sdramVec(0).io.ras := io.ras
+	sdramVec(0).io.cas := io.cas
+	sdramVec(0).io.we := io.we
+	sdramVec(0).io.a := io.a
+	sdramVec(0).io.ba := io.ba
+	sdramVec(0).io.dqm := io.dqm(1, 0)
+	sdramVec(0).io.dq <> io.dq0
+
+	sdramVec(1).io.clk := io.clk
+	sdramVec(1).io.cke := io.cke
+	sdramVec(1).io.cs := io.cs
+	sdramVec(1).io.ras := io.ras
+	sdramVec(1).io.cas := io.cas
+	sdramVec(1).io.we := io.we
+	sdramVec(1).io.a := io.a
+	sdramVec(1).io.ba := io.ba
+	sdramVec(1).io.dqm := io.dqm(3, 2)
+	sdramVec(1).io.dq <> io.dq1
+}
+
+class sdramChiselSub(idx: UInt) extends RawModule with SDRAMCMD with SDRAMMODE {
+	val io = IO(Flipped(new SDRAMIOSub))
 	val sdram = Module(new DPI_sdram)
 
 	val dout = Wire(UInt(16.W))
@@ -117,39 +158,21 @@ class sdramChisel extends RawModule with SDRAMCMD with SDRAMMODE {
 			csa_cnt := CASLat(mode)
 			br_cnt := toLength(mode)
 			mask := io.dqm
-			when(CASLat(mode) === 1.U) {
-				csa_cnt := 2.U
-				br_cnt := toLength(mode) - 1.U
-				addr := Cat(addr(23, 9), io.a(8, 0)) + 1.U
-				sdram.io.valid := true.B
-				sdram.io.addr := Cat(addr(23, 9), io.a(8, 0))
-				sdram.io.mask := io.dqm
-				sdram.io.wdata := 0.U
-				sdram.io.we := false.B
-				dout := sdram.io.rdata(15, 0)
-				out_en := true.B
-			}
-		} .elsewhen(state === s_read && csa_cnt =/= 2.U && io.cke)
-		{
-			csa_cnt := csa_cnt - 1.U
-		} .elsewhen(state === s_read && csa_cnt === 2.U && io.cke) {
-			when(br_cnt =/= 0.U) {
-				br_cnt := br_cnt - 1.U
-				addr := addr + 1.U
-				sdram.io.valid := true.B
-				sdram.io.addr := addr
-				sdram.io.mask := mask
-				sdram.io.wdata := 0.U
-				sdram.io.we := false.B
-				dout := sdram.io.rdata(15, 0)
-				out_en := true.B
-			} .elsewhen(br_cnt === 0.U) {
-				sdram.io.valid := false.B
-				sdram.io.we := false.B
-				dout := sdram.io.rdata(15, 0)
-				out_en := true.B
-				state := s_idle
-			}
+
+			sdram.io.valid := true.B
+			sdram.io.addr := Cat(addr(23, 9), io.a(8, 0), idx(0))
+			sdram.io.mask := io.dqm
+			sdram.io.wdata := 0.U
+			sdram.io.we := false.B
+			dout := sdram.io.rdata(15, 0)
+			out_en := true.B
+		} .elsewhen(state === s_read && io.cke) {
+			sdram.io.valid := false.B
+			sdram.io.wdata := 0.U
+			sdram.io.we := false.B
+			dout := sdram.io.rdata(15, 0)
+			out_en := true.B
+			state := s_idle
 		}
 
 		when(WRITE(cmd) && io.cke) {
@@ -159,26 +182,16 @@ class sdramChisel extends RawModule with SDRAMCMD with SDRAMMODE {
 			mask := io.dqm
 
 			sdram.io.valid := true.B
-			sdram.io.addr := Cat(addr(23, 9), io.a(8, 0))
+			sdram.io.addr := Cat(addr(23, 9), io.a(8, 0), idx(0))
 			sdram.io.mask := io.dqm
 			sdram.io.wdata := di
 			sdram.io.we := true.B
 		} .elsewhen(state === s_write && io.cke) {
-			when(br_cnt =/= 0.U) {
-				br_cnt := br_cnt - 1.U
-				addr := addr + 1.U
-				sdram.io.valid := true.B
-				sdram.io.addr := addr
-				sdram.io.mask := io.dqm
-				sdram.io.wdata := di
-				sdram.io.we := true.B
-			} .elsewhen(br_cnt === 0.U) {
-				sdram.io.valid := false.B
-				sdram.io.we := false.B
-				out_en := false.B
-				dout := 0.U(16.W)
-				state := s_idle
-			}
+			sdram.io.valid := false.B
+			sdram.io.wdata := di
+			sdram.io.we := true.B
+			out_en := false.B
+			state := s_idle
 		}
 	}
 }
@@ -187,7 +200,7 @@ class DPI_sdram extends BlackBox with HasBlackBoxInline {
 	val io = IO(new Bundle {
 		val clk = Input(Clock())
 		val valid = Input(Bool())
-		val addr = Input(UInt(24.W))
+		val addr = Input(UInt(25.W))
 		val mask = Input(UInt(2.W))
 		val wdata = Input(UInt(16.W))
 		val we = Input(Bool())
@@ -198,7 +211,7 @@ class DPI_sdram extends BlackBox with HasBlackBoxInline {
 		|module DPI_sdram(
 		|	input clk,
 		|	input valid,
-		|	input [23:0] addr,
+		|	input [24:0] addr,
 		|	input [1:0] mask,
 		|	input [15:0] wdata,
 		|	input we,
@@ -209,8 +222,8 @@ class DPI_sdram extends BlackBox with HasBlackBoxInline {
 		|always @(posedge clk) begin
 		|	rdata = 32'h0;
 		|	if (valid) begin
-		|		if (we) sdram_write({7'b1010000, addr, 1'b0}, {16'h0, wdata}, {30'h0, mask});
-		|		else sdram_read({7'b1010000, addr, 1'b0}, rdata);
+		|		if (we) sdram_write({6'b101000, addr, 1'b0}, {16'h0, wdata}, {30'h0, mask});
+		|		else sdram_read({6'b101000, addr, 1'b0}, rdata);
 		|	end
 		|end
 		|endmodule
