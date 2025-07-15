@@ -38,6 +38,23 @@ trait SDRAMMODE {
 }
 
 class SDRAMIO extends Bundle {
+  val sel = Output(Bool())
+  val clk = Output(Bool())
+  val cke = Output(Bool())
+  val cs  = Output(Bool())
+  val ras = Output(Bool())
+  val cas = Output(Bool())
+  val we  = Output(Bool())
+  val a   = Output(UInt(13.W))
+  val ba  = Output(UInt(2.W))
+  val dqm = Output(UInt(4.W))
+  val dq00 = Analog(16.W)
+  val dq01 = Analog(16.W)
+  val dq10 = Analog(16.W)
+  val dq11 = Analog(16.W)
+}
+
+class SDRAMIOBlock extends Bundle {
   val clk = Output(Bool())
   val cke = Output(Bool())
   val cs  = Output(Bool())
@@ -88,6 +105,36 @@ class sdram extends BlackBox {
 
 class sdramChisel extends RawModule {
 	val io = IO(Flipped(new SDRAMIO))
+	val sdramBlockVec = Seq.fill(2)(Module(new sdramChiselBlock))
+
+	sdramBlockVec(0).io.clk := io.clk
+	sdramBlockVec(0).io.cke := io.cke
+	sdramBlockVec(0).io.ras := io.ras
+	sdramBlockVec(0).io.cas := io.cas
+	sdramBlockVec(0).io.we := io.we
+	sdramBlockVec(0).io.a := io.a
+	sdramBlockVec(0).io.ba := io.ba
+	sdramBlockVec(0).io.dqm := io.dqm
+	sdramBlockVec(0).io.dq0 <> io.dq00
+	sdramBlockVec(0).io.dq1 <> io.dq01
+
+	sdramBlockVec(1).io.clk := io.clk
+	sdramBlockVec(1).io.cke := io.cke
+	sdramBlockVec(1).io.ras := io.ras
+	sdramBlockVec(1).io.cas := io.cas
+	sdramBlockVec(1).io.we := io.we
+	sdramBlockVec(1).io.a := io.a
+	sdramBlockVec(1).io.ba := io.ba
+	sdramBlockVec(1).io.dqm := io.dqm
+	sdramBlockVec(1).io.dq0 <> io.dq10
+	sdramBlockVec(1).io.dq1 <> io.dq11
+
+	sdramBlockVec(0).io.cs := io.cs | io.sel
+	sdramBlockVec(1).io.cs := io.cs | !io.sel
+}
+
+class sdramChiselBlock extends RawModule {
+	val io = IO(Flipped(new SDRAMIOBlock))
 	val sdramVec = Seq(Module(new sdramChiselSub(0.U)), Module(new sdramChiselSub(1.U)))
 
 	sdramVec(0).io.clk := io.clk
@@ -140,7 +187,7 @@ class sdramChiselSub(idx: UInt) extends RawModule with SDRAMCMD with SDRAMMODE {
 		val br_cnt = Reg(UInt(4.W))
 		val mask = Reg(UInt(2.W))
 		val cmd = Cat(io.cs, io.ras, io.cas, io.we)
-		val addr = Reg(UInt(24.W))
+		val addrVec = Seq.fill(4)(Reg(UInt(25.W)))
 		val mode = Reg(UInt(13.W))
 
 		when(MODE(cmd) && io.cke) {
@@ -148,19 +195,32 @@ class sdramChiselSub(idx: UInt) extends RawModule with SDRAMCMD with SDRAMMODE {
 		}
 
 		when(ACTIVE(cmd) && io.cke) {
-			addr := Cat(io.a, io.ba, 0.U(9.W))
+			for(i <- 0 until 4) {
+				when(io.ba === i.U) {
+					addrVec(i) := Cat(io.a, io.ba, 0.U(10.W))
+				}
+			}
 			state := s_idle
 		}
 
 		when(READ(cmd) && io.cke) {
-			addr := Cat(addr(23, 9), io.a(8, 0))
+			for(i <- 0 until 4) {
+				when(io.ba === i.U) {
+					addrVec(i) := Cat(addrVec(i)(24, 10), io.a(9, 0))
+				}
+			}
 			state := s_read
 			csa_cnt := CASLat(mode)
 			br_cnt := toLength(mode)
 			mask := io.dqm
 
 			sdram.io.valid := true.B
-			sdram.io.addr := Cat(addr(23, 9), io.a(8, 0), idx(0))
+			sdram.io.addr := MuxLookup(io.ba, addrVec(0))(Seq(
+				0.U -> Cat(addrVec(0)(24, 10), io.a(9, 1), idx(0)),
+				1.U -> Cat(addrVec(1)(24, 10), io.a(9, 1), idx(0)),
+				2.U -> Cat(addrVec(2)(24, 10), io.a(9, 1), idx(0)),
+				3.U -> Cat(addrVec(3)(24, 10), io.a(9, 1), idx(0))
+			))
 			sdram.io.mask := io.dqm
 			sdram.io.wdata := 0.U
 			sdram.io.we := false.B
@@ -176,13 +236,22 @@ class sdramChiselSub(idx: UInt) extends RawModule with SDRAMCMD with SDRAMMODE {
 		}
 
 		when(WRITE(cmd) && io.cke) {
-			addr := Cat(addr(23, 9), io.a(8, 0)) + 1.U
+			for(i <- 0 until 4) {
+				when(io.ba === i.U) {
+					addrVec(i) := Cat(addrVec(i)(24, 10), io.a(9, 0))
+				}
+			}
 			state := s_write
 			br_cnt := toLength(mode) - 1.U
 			mask := io.dqm
 
 			sdram.io.valid := true.B
-			sdram.io.addr := Cat(addr(23, 9), io.a(8, 0), idx(0))
+			sdram.io.addr := MuxLookup(io.ba, addrVec(0))(Seq(
+				0.U -> Cat(addrVec(0)(24, 10), io.a(9, 1), idx(0)),
+				1.U -> Cat(addrVec(1)(24, 10), io.a(9, 1), idx(0)),
+				2.U -> Cat(addrVec(2)(24, 10), io.a(9, 1), idx(0)),
+				3.U -> Cat(addrVec(3)(24, 10), io.a(9, 1), idx(0))
+			))
 			sdram.io.mask := io.dqm
 			sdram.io.wdata := di
 			sdram.io.we := true.B
