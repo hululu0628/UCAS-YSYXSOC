@@ -13,11 +13,32 @@ object Config {
 class Top extends Module {
   implicit val config: Parameters = new Config(new Edge32BitConfig ++ new DefaultRV32Config)
 
-  val io = IO(new Bundle { })
-  val dut = LazyModule(new ysyxSoCFull)
-  val mdut = Module(dut.module)
-  mdut.dontTouchPorts()
-  mdut.externalPins := DontCare
+  val io = IO(new Bundle {
+	val led = Output(UInt(16.W))
+	val sw = Input(UInt(16.W))
+	val seg0 = Output(UInt(8.W))
+	val seg1 = Output(UInt(8.W))
+	val seg2 = Output(UInt(8.W))
+	val seg3 = Output(UInt(8.W))
+	val seg4 = Output(UInt(8.W))
+	val seg5 = Output(UInt(8.W))
+	val seg6 = Output(UInt(8.W))
+	val seg7 = Output(UInt(8.W))
+  })
+	val dut = LazyModule(new ysyxSoCFull)
+	val mdut = Module(dut.module)
+	mdut.dontTouchPorts()
+	mdut.externalPins := DontCare
+	io.led := mdut.externalPins.gpio.out
+	io.seg0 := mdut.externalPins.gpio.seg(0)
+	io.seg1 := mdut.externalPins.gpio.seg(1)
+	io.seg2 := mdut.externalPins.gpio.seg(2)
+	io.seg3 := mdut.externalPins.gpio.seg(3)
+	io.seg4 := mdut.externalPins.gpio.seg(4)
+	io.seg5 := mdut.externalPins.gpio.seg(5)
+	io.seg6 := mdut.externalPins.gpio.seg(6)
+	io.seg7 := mdut.externalPins.gpio.seg(7)
+	mdut.externalPins.gpio.in := io.sw
 }
 
 object Elaborate extends App {
