@@ -31,6 +31,13 @@ class Top extends Module {
 	// ps2
 	val ps2_clk = Input(Bool())
 	val ps2_data = Input(Bool())
+	// vga
+	val vga_valid = Output(Bool())
+	val vga_hsync = Output(Bool())
+	val vga_vsync = Output(Bool())
+	val vga_r = Output(UInt(8.W))
+	val vga_g = Output(UInt(8.W))
+	val vga_b = Output(UInt(8.W))
   })
 	val dut = LazyModule(new ysyxSoCFull)
 	val mdut = Module(dut.module)
@@ -53,6 +60,13 @@ class Top extends Module {
 	// ps2
 	mdut.externalPins.ps2.clk := io.ps2_clk
 	mdut.externalPins.ps2.data := io.ps2_data
+	// vga
+	io.vga_valid := mdut.externalPins.vga.valid
+	io.vga_hsync := mdut.externalPins.vga.hsync
+	io.vga_vsync := mdut.externalPins.vga.vsync
+	io.vga_r := mdut.externalPins.vga.r
+	io.vga_g := mdut.externalPins.vga.g
+	io.vga_b := mdut.externalPins.vga.b
 }
 
 object Elaborate extends App {

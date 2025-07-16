@@ -29,7 +29,18 @@ class vga_top_apb extends BlackBox {
 }
 
 class vgaChisel extends Module {
-  val io = IO(new VGACtrlIO)
+	val io = IO(new VGACtrlIO)
+	io.in.pready := false.B
+	io.in.prdata := 0.U
+	io.in.pslverr := false.B
+
+	io.vga.r := 0.U
+	io.vga.g := 0.U
+	io.vga.b := 0.U
+	io.vga.hsync := false.B
+	io.vga.vsync := false.B
+	io.vga.valid := false.B
+	
 }
 
 class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
@@ -46,7 +57,7 @@ class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
     val (in, _) = node.in(0)
     val vga_bundle = IO(new VGAIO)
 
-    val mvga = Module(new vga_top_apb)
+    val mvga = Module(new vgaChisel)
     mvga.io.clock := clock
     mvga.io.reset := reset
     mvga.io.in <> in
