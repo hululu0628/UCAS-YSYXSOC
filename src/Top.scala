@@ -28,6 +28,9 @@ class Top extends Module {
 	// uart
 	val uart_tx = Output(UInt(1.W))
 	val uart_rx = Input(UInt(1.W))
+	// ps2
+	val ps2_clk = Input(Bool())
+	val ps2_data = Input(Bool())
   })
 	val dut = LazyModule(new ysyxSoCFull)
 	val mdut = Module(dut.module)
@@ -47,6 +50,9 @@ class Top extends Module {
 	// uart
 	io.uart_tx := mdut.externalPins.uart.tx
 	mdut.externalPins.uart.rx := io.uart_rx
+	// ps2
+	mdut.externalPins.ps2.clk := io.ps2_clk
+	mdut.externalPins.ps2.data := io.ps2_data
 }
 
 object Elaborate extends App {
