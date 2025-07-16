@@ -35,7 +35,7 @@ class ps2Chisel extends Module {
 	val fifo = Reg(Vec(16, UInt(8.W)))
 	val fifohead = RegInit(0.U(4.W))
 	val fifotail = RegInit(0.U(4.W))
-	val buffer = RegInit(0.U(10.W))
+	val buffer = RegInit(0.U(9.W))
 	val recv_cnt = RegInit(0.U(4.W))
 	val recv_succ = RegInit(false.B)
 
@@ -45,7 +45,7 @@ class ps2Chisel extends Module {
 
 	val s_idle :: s_start :: s_recv :: s_stop :: Nil = Enum(4)
 	val state = RegInit(s_idle)
-	state := MuxLookUp(state, s_idle)(Seq(
+	state := MuxLookup(state, s_idle)(Seq(
 		s_idle -> Mux(sampling & ~data, s_recv, s_idle),
 		s_recv -> Mux(sampling && recv_cnt === 8.U, s_stop, s_recv),
 		s_stop -> Mux(sampling & data, s_idle, s_stop)
@@ -54,8 +54,8 @@ class ps2Chisel extends Module {
 		recv_cnt := 0.U
 		buffer := 0.U
 		recv_succ := false.B
-	} .elsewhen(sampling && s_recv) {
-		buffer := Cat(buffer(8, 0), data)
+	} .elsewhen(sampling && state === s_recv) {
+		buffer := Cat(data, buffer(8, 1))
 		recv_cnt := recv_cnt + 1.U
 	} .elsewhen(sampling && state === s_stop) {
 		recv_succ := true.B
@@ -73,6 +73,9 @@ class ps2Chisel extends Module {
 				when(fifohead =/= fifotail) {
 					io.in.prdata := Cat(0.U(24.W), fifo(fifotail))
 					fifotail := fifotail + 1.U
+					io.in.pready := true.B
+				} .elsewhen(fifohead === fifotail) {
+					io.in.prdata := 0.U
 					io.in.pready := true.B
 				}
 			}
