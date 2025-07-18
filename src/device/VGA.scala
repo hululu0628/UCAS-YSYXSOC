@@ -80,7 +80,7 @@ class vgaChisel extends Module {
 
 	when(apb.psel && apb.penable && apb.pwrite) {
 		frame_buffer.io.we := true.B
-		frame_buffer.io.addr_w := apb.paddr(18, 0)
+		frame_buffer.io.addr_w := apb.paddr(20, 2)
 		frame_buffer.io.data_in := apb.pwdata
 		apb.pready := true.B
 	}

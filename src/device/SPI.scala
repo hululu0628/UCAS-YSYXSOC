@@ -113,7 +113,7 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
 		apb_io.penable := false.B
 		apb_io.paddr := SPI_DIV
 		apb_io.pwrite := true.B
-		apb_io.pwdata := 10.U(32.W)
+		apb_io.pwdata := 0.U(32.W) // set divisor
 		apb_io.pstrb := 0xf.U(4.W)
 		apb_io.pprot := 0.U
 		when(apb_state === apb_enable) {
