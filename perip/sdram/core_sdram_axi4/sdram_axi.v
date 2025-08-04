@@ -53,7 +53,6 @@ module sdram_axi
     ,input  [  7:0]  inport_arlen_i
     ,input  [  1:0]  inport_arburst_i
     ,input           inport_rready_i
-    ,input  [ 15:0]  sdram_data_input_i
 
     // Outputs
     ,output          inport_awready_o
@@ -67,17 +66,24 @@ module sdram_axi
     ,output [  1:0]  inport_rresp_o
     ,output [  3:0]  inport_rid_o
     ,output          inport_rlast_o
+
+    ,output 	     sdram_sel_o
     ,output          sdram_clk_o
     ,output          sdram_cke_o
     ,output          sdram_cs_o
     ,output          sdram_ras_o
     ,output          sdram_cas_o
     ,output          sdram_we_o
-    ,output [  1:0]  sdram_dqm_o
+    ,output [  3:0]  sdram_dqm_o
     ,output [ 12:0]  sdram_addr_o
     ,output [  1:0]  sdram_ba_o
-    ,output [ 15:0]  sdram_data_output_o
+    ,output [ 31:0]  sdram_data_output_o
     ,output          sdram_data_out_en_o
+
+    ,inout  [15:0] sdram_dq00
+    ,inout  [15:0] sdram_dq01
+    ,inout  [15:0] sdram_dq10
+    ,inout  [15:0] sdram_dq11
 );
 
 
@@ -86,9 +92,9 @@ module sdram_axi
 // Key Params
 //-----------------------------------------------------------------
 parameter SDRAM_MHZ             = 50;
-parameter SDRAM_ADDR_W          = 24;
-parameter SDRAM_COL_W           = 9;
-parameter SDRAM_READ_LATENCY    = 2;
+parameter SDRAM_ADDR_W          = 25;
+parameter SDRAM_COL_W           = 10;
+parameter SDRAM_READ_LATENCY    = 1;
 
 //-----------------------------------------------------------------
 // AXI Interface
@@ -153,6 +159,12 @@ u_axi
 //-----------------------------------------------------------------
 // SDRAM Controller
 //-----------------------------------------------------------------
+assign sdram_sel_o = ram_addr_w[26];
+assign sdram_dq00 = sdram_data_out_en_o ? sdram_data_output_o[15:0] : 16'bz;
+assign sdram_dq01 = sdram_data_out_en_o ? sdram_data_output_o[31:16] : 16'bz;
+assign sdram_dq10 = sdram_data_out_en_o ? sdram_data_output_o[15:0] : 16'bz;
+assign sdram_dq11 = sdram_data_out_en_o ? sdram_data_output_o[31:16] : 16'bz;
+
 sdram_axi_core
 #(
      .SDRAM_MHZ(SDRAM_MHZ)
@@ -186,7 +198,7 @@ u_core
     ,.sdram_ba_o(sdram_ba_o)
     ,.sdram_data_output_o(sdram_data_output_o)
     ,.sdram_data_out_en_o(sdram_data_out_en_o)
-    ,.sdram_data_input_i(sdram_data_input_i)
+    ,.sdram_data_input_i(sdram_sel_o ? {sdram_dq11, sdram_dq10} : {sdram_dq01, sdram_dq00})
 );
 
 

@@ -31,6 +31,7 @@ module sdram_top_axi(
   output        in_rlast,
   output [3:0]  in_rid,
 
+  output        sdram_sel,
   output        sdram_clk,
   output        sdram_cke,
   output        sdram_cs,
@@ -39,18 +40,19 @@ module sdram_top_axi(
   output        sdram_we,
   output [12:0] sdram_a,
   output [ 1:0] sdram_ba,
-  output [ 1:0] sdram_dqm,
-  inout  [15:0] sdram_dq
+  output [ 3:0] sdram_dqm,
+  inout  [15:0] sdram_dq00,
+  inout  [15:0] sdram_dq01,
+  inout  [15:0] sdram_dq10,
+  inout  [15:0] sdram_dq11
 );
-
   wire sdram_dout_en;
-  wire [15:0] sdram_dout;
-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
+  wire [31:0] sdram_dout;
   sdram_axi #(
     .SDRAM_MHZ(100),
-    .SDRAM_ADDR_W(24),
-    .SDRAM_COL_W(9),
-    .SDRAM_READ_LATENCY(2)
+    .SDRAM_ADDR_W(25),
+    .SDRAM_COL_W(10),
+    .SDRAM_READ_LATENCY(1)
   ) u_sdram_axi(
     .clk_i(clock),
     .rst_i(reset),
@@ -82,6 +84,8 @@ module sdram_top_axi(
     .inport_rresp_o(in_rresp),
     .inport_rid_o(in_rid),
     .inport_rlast_o(in_rlast),
+
+    .sdram_sel_o(sdram_sel),
     .sdram_clk_o(sdram_clk),
     .sdram_cke_o(sdram_cke),
     .sdram_cs_o(sdram_cs),
@@ -91,9 +95,12 @@ module sdram_top_axi(
     .sdram_dqm_o(sdram_dqm),
     .sdram_addr_o(sdram_a),
     .sdram_ba_o(sdram_ba),
-    .sdram_data_input_i(sdram_dq),
     .sdram_data_output_o(sdram_dout),
-    .sdram_data_out_en_o(sdram_dout_en)
+    .sdram_data_out_en_o(sdram_dout_en),
+    .sdram_dq00(sdram_dq00),
+    .sdram_dq01(sdram_dq01),
+    .sdram_dq10(sdram_dq10),
+    .sdram_dq11(sdram_dq11)
   );
 
 endmodule

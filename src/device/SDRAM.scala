@@ -338,7 +338,7 @@ class APBSDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyMod
     val (in, _) = node.in(0)
     val sdram_bundle = IO(new SDRAMIO)
 
-    val msdram = Module(new sdram_top_apb)
+    val msdram = Module(new sdram_top_axi)
     msdram.io.clock := clock
     msdram.io.reset := reset.asBool
     msdram.io.in <> in
